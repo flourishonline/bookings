@@ -162,12 +162,69 @@ module.exports = async function handler(req, res) {
 
     if (process.env.RESEND_API_KEY && process.env.FROM_EMAIL) {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const ownerName = process.env.OWNER_NAME || 'Lis Nagle';
+      const notifyEmail = process.env.NOTIFY_EMAIL || 'ellissa@flourishonline.com.au';
+      const tz = process.env.TIMEZONE_LABEL || 'AEST';
+
+      // 1. Confirmation email to client
       await resend.emails.send({
-        from: `${process.env.OWNER_NAME || 'Lis Nagle'} <${process.env.FROM_EMAIL}>`,
+        from: `${ownerName} <${process.env.FROM_EMAIL}>`,
         to: email,
         replyTo: process.env.REPLY_TO_EMAIL || process.env.FROM_EMAIL,
         subject: `Your ${service.name} is confirmed ✨`,
         html: confirmationEmail({ firstName, lastName, serviceName: service.name, duration: service.duration, date, time, meetLink, bookingUrl }),
+      });
+
+      // 2. Notification email to Lis
+      const endTime = addMins(time, service.duration);
+      await resend.emails.send({
+        from: `${ownerName} <${process.env.FROM_EMAIL}>`,
+        to: notifyEmail,
+        subject: `New booking: ${service.name} — ${firstName} ${lastName}`,
+        html: `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:40px 20px;background:#F5F0E8;font-family:Arial,sans-serif;color:#193133;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;">
+    <tr>
+      <td style="background:#C41230;padding:24px 32px;">
+        <p style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);margin:0 0 6px;">New Booking</p>
+        <h1 style="font-size:22px;font-weight:700;color:#ffffff;margin:0;">${firstName} ${lastName}</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#ffffff;padding:28px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-left:4px solid #C41230;background:#F5F0E8;margin-bottom:20px;">
+          <tr><td style="padding:14px 18px;border-bottom:1px solid #e0d8ce;">
+            <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Session</p>
+            <p style="font-size:16px;font-weight:700;color:#193133;margin:0;">${service.name}</p>
+          </td></tr>
+          <tr><td style="padding:14px 18px;border-bottom:1px solid #e0d8ce;">
+            <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Date & Time</p>
+            <p style="font-size:16px;font-weight:700;color:#193133;margin:0 0 2px;">${friendlyDate(date)}</p>
+            <p style="font-size:13px;color:#5a5550;margin:0;">${friendlyTime(time)} – ${friendlyTime(endTime)} ${tz}</p>
+          </td></tr>
+          <tr><td style="padding:14px 18px;border-bottom:1px solid #e0d8ce;">
+            <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Client Email</p>
+            <p style="font-size:15px;color:#193133;margin:0;"><a href="mailto:${email}" style="color:#C41230;text-decoration:none;">${email}</a></p>
+          </td></tr>
+          ${notes ? `<tr><td style="padding:14px 18px;">
+            <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Their Notes</p>
+            <p style="font-size:14px;color:#193133;margin:0;line-height:1.6;">${notes}</p>
+          </td></tr>` : ''}
+        </table>
+        ${meetLink ? `<p style="margin:0 0 16px;"><a href="${meetLink}" style="display:inline-block;background:#193133;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:11px 20px;text-decoration:none;">JOIN MEET →</a></p>` : ''}
+        <p style="font-size:12px;color:#9a9088;margin:0;">This booking was made via flourishonline.com.au</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#193133;padding:16px 32px;text-align:center;">
+        <p style="font-size:11px;color:#C1EAD8;margin:0;">Flourish Online Booking System</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
       });
     }
 

@@ -498,12 +498,12 @@ const CONFIG = {
   workingHours: { start: 9, end: 17 },
   workingDays: [1, 2, 3, 4, 5],
   slotIntervalMins: 30,
-  bufferMins: 15,
+  bufferMins: 30,
   advanceDays: 60,
   services: [
-    { id: 'discovery', name: 'Discovery Call',   icon: '✨', duration: 30,  desc: 'A complimentary 30-minute call to explore working together and see if we\'re a great fit.' },
-    { id: 'strategy',  name: 'Brand Strategy',   icon: '🔥', duration: 60,  desc: 'A focused 1-hour session to map your brand archetype and positioning strategy.' },
-    { id: 'intensive', name: 'Brand Intensive',  icon: '💫', duration: 90,  desc: 'A deep 90-minute intensive — ideal for a full brand audit or visual direction session.' },
+    { id: 'discovery', name: 'Discovery Call',        icon: '✨', duration: 30,  desc: 'A complimentary 30-minute call to explore working together and see if we\'re a great fit.' },
+    { id: 'handover',  name: 'Project Handover Call', icon: '🤝', duration: 30,  desc: 'A 30-minute call to walk through your completed project and celebrate what we\'ve built together.' },
+    { id: 'client',    name: 'Client Meeting',        icon: '🔒', duration: 60,  desc: 'For existing Flourish clients. You\'ll need your access password to book this session.', password: 'flourish' },
     { id: 'vip',       name: 'VIP Design Day',   icon: '👑', duration: 480, desc: 'A full day dedicated to your brand and website. Transformative results in one day.' },
   ]
 };
@@ -527,10 +527,49 @@ function renderServices() {
 }
 
 function selectService(id) {
-  state.service = CONFIG.services.find(s => s.id === id);
+  const svc = CONFIG.services.find(s => s.id === id);
   document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
   document.getElementById('svc_' + id).classList.add('selected');
-  document.getElementById('nextStep1').disabled = false;
+
+  // Remove any existing password prompt
+  const existing = document.getElementById('passwordPrompt');
+  if (existing) existing.remove();
+  document.getElementById('nextStep1').disabled = true;
+
+  if (svc.password) {
+    const prompt = document.createElement('div');
+    prompt.id = 'passwordPrompt';
+    prompt.style.cssText = 'margin-top:20px;';
+    prompt.innerHTML = `
+      <label style="font-family:'Josefin Sans',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#193133;font-weight:700;display:block;margin-bottom:6px;">Client Access Password</label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input type="password" id="passwordInput" placeholder="Enter your password"
+          style="background:#F5F0E8;border:2px solid #D8D0C4;padding:12px 14px;font-family:'Josefin Sans',sans-serif;font-size:14px;color:#193133;outline:none;flex:1;border-radius:0;"
+          oninput="checkPassword('${id}')" />
+      </div>
+      <div id="passwordError" style="font-size:12px;color:#C41230;margin-top:6px;display:none;">Incorrect password — please try again.</div>
+    `;
+    document.getElementById('serviceList').after(prompt);
+    setTimeout(() => document.getElementById('passwordInput').focus(), 50);
+  } else {
+    state.service = svc;
+    document.getElementById('nextStep1').disabled = false;
+  }
+}
+
+function checkPassword(id) {
+  const svc = CONFIG.services.find(s => s.id === id);
+  const val = document.getElementById('passwordInput').value;
+  const err = document.getElementById('passwordError');
+  if (val.toLowerCase() === svc.password.toLowerCase()) {
+    state.service = svc;
+    err.style.display = 'none';
+    document.getElementById('nextStep1').disabled = false;
+  } else {
+    state.service = null;
+    err.style.display = val.length >= svc.password.length ? 'block' : 'none';
+    document.getElementById('nextStep1').disabled = true;
+  }
 }
 
 function renderCalendar() {

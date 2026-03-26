@@ -508,13 +508,58 @@ const CONFIG = {
   ]
 };
 
+// Detect client's local timezone
+const CLIENT_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const CLIENT_TZ_LABEL = new Intl.DateTimeFormat('en', { timeZoneName: 'short', timeZone: CLIENT_TZ })
+  .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || CLIENT_TZ;
+
+// Convert a AEST time string (HH:MM) on a given date to the client's local time
+// Returns { time: 'HH:MM', dateStr: 'YYYY-MM-DD' } — date may shift if crossing midnight
+function aestToLocal(dateStr, timeStr) {
+  const dt = new Date(`${dateStr}T${timeStr}:00+10:00`);
+  const localDate = dt.toLocaleDateString('en-CA', { timeZone: CLIENT_TZ }); // en-CA gives YYYY-MM-DD
+  const localTime = dt.toLocaleTimeString('en-GB', { timeZone: CLIENT_TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+  return { date: localDate, time: localTime };
+}
+
+// Convert a local time on a date back to AEST for the backend
+function localToAest(dateStr, timeStr) {
+  // Build a date in client timezone
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [h, mi] = timeStr.split(':').map(Number);
+  const dt = new Date(Date.UTC(y, mo - 1, d, h, mi));
+  // Adjust by client UTC offset
+  const clientOffset = -new Date(`${dateStr}T${timeStr}:00`).getTimezoneOffset();
+  const aestOffset = 10 * 60; // AEST is UTC+10
+  const diffMins = aestOffset - clientOffset;
+  const aest = new Date(dt.getTime() - diffMins * 60000);
+  const aestDate = aest.toLocaleDateString('en-CA', { timeZone: 'Australia/Brisbane' });
+  const aestTime = aest.toLocaleTimeString('en-GB', { timeZone: 'Australia/Brisbane', hour: '2-digit', minute: '2-digit', hour12: false });
+  return { date: aestDate, time: aestTime };
+}
+
+function fmtLocalTime(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h >= 12 ? 'pm' : 'am'}`;
+}
+
 let state = {
   step: 1, service: null, date: null, time: null,
   busySlots: {}, calLoaded: {},
   viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth()
 };
 
-window.onload = () => { renderServices(); renderCalendar(); };
+window.onload = () => {
+  // Show timezone notice if client is not in Brisbane
+  if (CLIENT_TZ !== 'Australia/Brisbane' && CLIENT_TZ !== 'Australia/Queensland') {
+    const notice = document.createElement('div');
+    notice.style.cssText = 'background:#193133;color:#C1EAD8;font-size:12px;text-align:center;padding:8px 20px;letter-spacing:0.5px;';
+    notice.textContent = `⏰ Times shown in your local timezone: ${CLIENT_TZ_LABEL}`;
+    document.querySelector('.hero').after(notice);
+  }
+  renderServices();
+  renderCalendar();
+};
 
 function renderServices() {
   document.getElementById('serviceList').innerHTML = CONFIG.services.map(s => `
@@ -646,17 +691,40 @@ function selectDate(ds) {
   renderCalendar();
   const date = new Date(ds + 'T00:00:00');
   document.getElementById('slotsLabel').textContent = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-  const slots = getAvailableSlots(ds);
-  if (!slots.length) {
+  const aestSlots = getAvailableSlots(ds);
+  if (!aestSlots.length) {
     document.getElementById('slotsList').innerHTML = '<div class="slots-empty">No availability on this date.</div>';
     return;
   }
-  document.getElementById('slotsList').innerHTML = slots.map(t =>
-    `<div class="slot" onclick="selectSlot('${t}', this)">${fmtTime(t)}</div>`).join('');
+  // Convert each AEST slot to client local time for display
+  // Store the AEST time in data-aest for submission, show local time as label
+  const slotItems = aestSlots.map(aestTime => {
+    const local = aestToLocal(ds, aestTime);
+    return { aestDate: ds, aestTime, localDate: local.date, localTime: local.time };
+  });
+  // Group by local date in case slots cross midnight for some timezones
+  const grouped = {};
+  slotItems.forEach(s => {
+    if (!grouped[s.localDate]) grouped[s.localDate] = [];
+    grouped[s.localDate].push(s);
+  });
+  let html = '';
+  Object.entries(grouped).sort().forEach(([localDate, items]) => {
+    // If the local date differs from selected date, show a mini header
+    if (localDate !== ds && Object.keys(grouped).length > 1) {
+      const ld = new Date(localDate + 'T00:00:00');
+      html += `<div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#9a9088;padding:6px 2px 2px;">${ld.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}</div>`;
+    }
+    items.forEach(s => {
+      html += `<div class="slot" data-aest-date="${s.aestDate}" data-aest-time="${s.aestTime}" onclick="selectSlot('${s.aestTime}', '${s.aestDate}', this)">${fmtLocalTime(s.localTime)}</div>`;
+    });
+  });
+  document.getElementById('slotsList').innerHTML = html;
 }
 
-function selectSlot(time, el) {
-  state.time = time;
+function selectSlot(aestTime, aestDate, el) {
+  state.time = aestTime;   // always store in AEST for backend
+  state.date = aestDate;   // date may differ for cross-midnight TZs
   document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('nextStep2').disabled = false;
@@ -693,12 +761,16 @@ function goToStep(n) {
 }
 
 function renderDetailsSummary() {
-  const date = new Date(state.date + 'T00:00:00');
-  const dl = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const local = aestToLocal(state.date, state.time);
+  const localDate = new Date(local.date + 'T00:00:00');
+  const dl = localDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const aestLocal = aestToLocal(state.date, state.time);
+  const tzNote = (CLIENT_TZ !== 'Australia/Brisbane' && CLIENT_TZ !== 'Australia/Queensland')
+    ? ` <span style="font-size:12px;font-weight:400;opacity:0.7">(${CLIENT_TZ_LABEL})</span>` : ` <span style="font-size:12px;font-weight:400;opacity:0.7">(AEST)</span>`;
   document.getElementById('detailsSummary').innerHTML = `
     <div class="summary-item"><div class="summary-label">Session</div><div class="summary-value">${state.service.name}</div></div>
     <div class="summary-item"><div class="summary-label">Date</div><div class="summary-value">${dl}</div></div>
-    <div class="summary-item"><div class="summary-label">Time</div><div class="summary-value">${fmtTime(state.time)} ${CONFIG.timezoneLabel}</div></div>
+    <div class="summary-item"><div class="summary-label">Time</div><div class="summary-value">${fmtLocalTime(aestLocal.time)}${tzNote}</div></div>
     <div class="summary-item"><div class="summary-label">Duration</div><div class="summary-value">${fmtDur(state.service.duration)}</div></div>`;
 }
 
@@ -725,14 +797,16 @@ async function confirmBooking() {
       document.getElementById('meetLinkWrap').innerHTML =
         `<a class="meet-link-btn" href="${data.meetLink}" target="_blank">🎥 Join Google Meet →</a>`;
     }
-    const date = new Date(state.date + 'T00:00:00');
-    const dl = date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const localConfirm = aestToLocal(state.date, state.time);
+    const confirmDate = new Date(localConfirm.date + 'T00:00:00');
+    const dl = confirmDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const tzDisplay = (CLIENT_TZ !== 'Australia/Brisbane' && CLIENT_TZ !== 'Australia/Queensland') ? CLIENT_TZ_LABEL : 'AEST';
     document.getElementById('confirmDetails').innerHTML = `
       <div class="summary-item"><div class="summary-label">Name</div><div class="summary-value">${firstName} ${lastName}</div></div>
       <div class="summary-item"><div class="summary-label">Email</div><div class="summary-value" style="font-size:13px;letter-spacing:0">${email}</div></div>
       <div class="summary-item"><div class="summary-label">Session</div><div class="summary-value">${state.service.name}</div></div>
       <div class="summary-item"><div class="summary-label">Duration</div><div class="summary-value">${fmtDur(state.service.duration)}</div></div>
-      <div class="summary-item" style="grid-column:1/-1"><div class="summary-label">Date & Time</div><div class="summary-value">${dl} at ${fmtTime(state.time)} ${CONFIG.timezoneLabel}</div></div>`;
+      <div class="summary-item" style="grid-column:1/-1"><div class="summary-label">Date & Time (your local time)</div><div class="summary-value">${dl} at ${fmtLocalTime(localConfirm.time)} ${tzDisplay}</div></div>`;
     goToStep(4);
   } catch(e) {
     setFormStatus('Something went wrong — please try again. (' + e.message + ')', 'error');

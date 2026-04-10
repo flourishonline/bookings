@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Book a Session — Flourish Online</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Josefin+Sans:wght@400;600;700&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  @font-face { font-family: 'Eighties Comeback'; src: url('assets/fonts/EightiesComeback-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Eighties Comeback'; src: url('assets/fonts/EightiesComeback-Bold.otf') format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Eighties Comeback'; src: url('assets/fonts/EightiesComebackIt-Regular.otf') format('opentype'); font-weight: 400; font-style: italic; font-display: swap; }
+  @font-face { font-family: 'Eighties Comeback'; src: url('assets/fonts/EightiesComebackIt-Bold.otf') format('opentype'); font-weight: 700; font-style: italic; font-display: swap; }
   :root {
     --crimson: #FF00BF;
     --magenta: #D4009E;
@@ -23,7 +29,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     background: var(--cream);
     color: var(--dark-emerald);
     min-height: 100vh;
@@ -66,7 +72,7 @@
     );
   }
   .eyebrow {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 11px;
     letter-spacing: 3px;
     text-transform: uppercase;
@@ -76,7 +82,7 @@
     position: relative;
   }
   .hero-title {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Eighties Comeback', serif;
     font-size: clamp(38px, 6vw, 62px);
     font-weight: 700;
     color: var(--white);
@@ -146,7 +152,7 @@
   @media (max-width: 600px) { .step-panel { padding: 28px 24px; } }
 
   .step-heading {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 22px;
     font-weight: 700;
     text-transform: uppercase;
@@ -194,7 +200,7 @@
   }
   .service-icon { font-size: 22px; margin-bottom: 10px; }
   .service-name {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 16px;
     font-weight: 700;
     text-transform: uppercase;
@@ -218,7 +224,7 @@
 
   .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .cal-month {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 18px;
     font-weight: 700;
     text-transform: uppercase;
@@ -255,7 +261,7 @@
   .slots-panel { border-left: 1px solid var(--border); padding-left: 24px; }
   @media (max-width: 640px) { .slots-panel { border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 20px; } }
   .slots-date-label {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
@@ -266,7 +272,7 @@
   .slots-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
   .slot {
     padding: 9px 14px; border: 2px solid var(--border);
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
     cursor: pointer; transition: all .15s;
     background: var(--cream-light); color: var(--dark-emerald);
@@ -282,7 +288,7 @@
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field.full { grid-column: 1 / -1; }
   label {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 10px; letter-spacing: 2px;
     text-transform: uppercase; color: var(--dark-emerald);
     font-weight: 700;
@@ -291,7 +297,7 @@
     background: var(--cream-light);
     border: 2px solid var(--border);
     padding: 12px 14px;
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 14px; color: var(--dark-emerald);
     font-weight: 400; outline: none;
     transition: border-color .15s; width: 100%;
@@ -310,7 +316,7 @@
   .summary-item { display: flex; flex-direction: column; gap: 3px; }
   .summary-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--aqua); font-weight: 700; }
   .summary-value {
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 15px; font-weight: 700;
     color: var(--white); letter-spacing: 0.3px;
   }
@@ -320,7 +326,7 @@
   .btn {
     padding: 14px 32px;
     border: none;
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 13px; font-weight: 700;
     letter-spacing: 2px; text-transform: uppercase;
     cursor: pointer; transition: all .2s;
@@ -350,11 +356,11 @@
     font-size: 30px; margin: 0 auto 24px;
     background: var(--crimson); color: var(--white);
     animation: scaleIn .5s ease;
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-weight: 700;
   }
   .confirm-title {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Eighties Comeback', serif;
     font-size: 36px; font-weight: 700;
     color: var(--dark-emerald); margin-bottom: 8px;
     font-style: italic;
@@ -369,7 +375,7 @@
   .meet-link-btn {
     display: inline-flex; align-items: center; gap: 8px;
     background: var(--crimson); color: var(--white);
-    font-family: 'Josefin Sans', sans-serif;
+    font-family: 'League Spartan', sans-serif;
     font-size: 13px; font-weight: 700;
     letter-spacing: 2px; text-transform: uppercase;
     padding: 14px 28px; text-decoration: none;
@@ -587,10 +593,10 @@ function selectService(id) {
     prompt.id = 'passwordPrompt';
     prompt.style.cssText = 'margin-top:20px;';
     prompt.innerHTML = `
-      <label style="font-family:'Josefin Sans',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:700;display:block;margin-bottom:6px;">Client Access Password</label>
+      <label style="font-family:'League Spartan',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:700;display:block;margin-bottom:6px;">Client Access Password</label>
       <div style="display:flex;gap:10px;align-items:center;">
         <input type="password" id="passwordInput" placeholder="Enter your password"
-          style="background:#F5F0E8;border:2px solid #D8D0C4;padding:12px 14px;font-family:'Josefin Sans',sans-serif;font-size:14px;color:#1A1A1A;outline:none;flex:1;border-radius:0;"
+          style="background:#F5F0E8;border:2px solid #D8D0C4;padding:12px 14px;font-family:'League Spartan',sans-serif;font-size:14px;color:#1A1A1A;outline:none;flex:1;border-radius:0;"
           oninput="checkPassword('${id}')" />
       </div>
       <div id="passwordError" style="font-size:12px;color:#FF00BF;margin-top:6px;display:none;">Incorrect password — please try again.</div>

@@ -28,12 +28,50 @@ function friendlyTime(time) {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h >= 12 ? 'pm' : 'am'}`;
 }
 
-function confirmationEmail({ firstName, lastName, serviceName, duration, date, time, meetLink, bookingUrl }) {
+// Render a Brisbane-local date/time pair as a date + time string in any
+// IANA timezone (e.g. "America/New_York"). Used for the visitor's
+// confirmation email so they see times in their own timezone.
+function friendlyDateTimeInTZ(dateStr, time, timezone) {
+  // dateStr + time are in Brisbane (UTC+10, no DST).
+  const dt = new Date(`${dateStr}T${time}:00+10:00`);
+  const dateOut = dt.toLocaleDateString('en-AU', {
+    timeZone: timezone,
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  // Build "h:MMam/pm" manually so the format matches friendlyTime().
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: 'numeric', minute: '2-digit', hour12: false,
+  }).formatToParts(dt);
+  const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
+  const m = parts.find(p => p.type === 'minute').value;
+  const timeOut = `${h % 12 || 12}:${m}${h >= 12 ? 'pm' : 'am'}`;
+  return { date: dateOut, time: timeOut };
+}
+
+function confirmationEmail({ firstName, lastName, serviceName, duration, date, time, meetLink, bookingUrl, clientTimezone, clientTimezoneLabel }) {
   const endTime = addMins(time, duration);
-  const tz = process.env.TIMEZONE_LABEL || 'AEST';
+  const hostTzLabel = process.env.TIMEZONE_LABEL || 'AEST';
+  const hostTimezone = process.env.TIMEZONE || 'Australia/Brisbane';
   const ownerName = process.env.OWNER_NAME || 'Lis Nagle';
   const ownerEmail = process.env.FROM_EMAIL || '';
   const rescheduleUrl = bookingUrl || process.env.BOOKING_URL || 'https://bookings-mocha-two.vercel.app';
+
+  // Render the date/time in the visitor's timezone when we have one,
+  // otherwise fall back to Brisbane time.
+  const useVisitorTz = !!clientTimezone && clientTimezone !== hostTimezone;
+  const startFmt = useVisitorTz
+    ? friendlyDateTimeInTZ(date, time, clientTimezone)
+    : { date: friendlyDate(date), time: friendlyTime(time) };
+  const endFmt = useVisitorTz
+    ? friendlyDateTimeInTZ(date, endTime, clientTimezone)
+    : { date: friendlyDate(date), time: friendlyTime(endTime) };
+  const tzDisplay = useVisitorTz ? (clientTimezoneLabel || clientTimezone) : hostTzLabel;
+  // If the visitor's local date is different from Brisbane (e.g. NYC on Mon
+  // when Brisbane is Tue), show both for clarity.
+  const hostStartFmt = { date: friendlyDate(date), time: friendlyTime(time) };
+  const hostEndFmt = { date: friendlyDate(date), time: friendlyTime(endTime) };
+  const showHostLine = useVisitorTz && (startFmt.date !== hostStartFmt.date);
 
   return `<!DOCTYPE html>
 <html>
@@ -59,8 +97,9 @@ function confirmationEmail({ firstName, lastName, serviceName, duration, date, t
           <tr>
             <td style="padding:18px 22px;border-bottom:1px solid #e0d8ce;">
               <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 4px;font-weight:700;">Date & Time</p>
-              <p style="font-size:18px;font-weight:700;color:#193133;margin:0 0 2px;">${friendlyDate(date)}</p>
-              <p style="font-size:14px;color:#5a5550;margin:0;">${friendlyTime(time)} – ${friendlyTime(endTime)} ${tz}</p>
+              <p style="font-size:18px;font-weight:700;color:#193133;margin:0 0 2px;">${startFmt.date}</p>
+              <p style="font-size:14px;color:#5a5550;margin:0;">${startFmt.time} – ${endFmt.time} ${tzDisplay}</p>
+              ${showHostLine ? `<p style="font-size:12px;color:#9a9088;margin:6px 0 0;">(${hostStartFmt.date}, ${hostStartFmt.time} – ${hostEndFmt.time} ${hostTzLabel})</p>` : ''}
             </td>
           </tr>
           ${meetLink ? `
@@ -108,7 +147,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { service, date, time, firstName, lastName, email, notes } = req.body || {};
+  const { service, date, time, firstName, lastName, email, notes, clientTimezone, clientTimezoneLabel } = req.body || {};
   if (!service || !date || !time || !firstName || !lastName || !email) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -172,7 +211,7 @@ module.exports = async function handler(req, res) {
         to: email,
         replyTo: process.env.REPLY_TO_EMAIL || process.env.FROM_EMAIL,
         subject: `Your ${service.name} is confirmed ✨`,
-        html: confirmationEmail({ firstName, lastName, serviceName: service.name, duration: service.duration, date, time, meetLink, bookingUrl }),
+        html: confirmationEmail({ firstName, lastName, serviceName: service.name, duration: service.duration, date, time, meetLink, bookingUrl, clientTimezone, clientTimezoneLabel }),
       });
 
       // 2. Notification email to Lis
@@ -203,6 +242,7 @@ module.exports = async function handler(req, res) {
             <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Date & Time</p>
             <p style="font-size:16px;font-weight:700;color:#193133;margin:0 0 2px;">${friendlyDate(date)}</p>
             <p style="font-size:13px;color:#5a5550;margin:0;">${friendlyTime(time)} – ${friendlyTime(endTime)} ${tz}</p>
+            ${clientTimezone && clientTimezone !== (process.env.TIMEZONE || 'Australia/Brisbane') ? `<p style="font-size:12px;color:#9a9088;margin:6px 0 0;">Client is in ${clientTimezoneLabel || clientTimezone}</p>` : ''}
           </td></tr>
           <tr><td style="padding:14px 18px;border-bottom:1px solid #e0d8ce;">
             <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C41230;margin:0 0 3px;font-weight:700;">Client Email</p>

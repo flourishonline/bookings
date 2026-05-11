@@ -20,9 +20,16 @@ module.exports = async function handler(req, res) {
   const { year, month } = req.query;
   if (!year || !month) return res.status(400).json({ error: 'year and month required' });
 
-  const timeMin = new Date(parseInt(year), parseInt(month), 1).toISOString();
-  const timeMax = new Date(parseInt(year), parseInt(month) + 1, 0, 23, 59, 59).toISOString();
   const timezone = process.env.TIMEZONE || 'Australia/Brisbane';
+  // Anchor the freebusy window to Brisbane midnight, not server-local midnight.
+  // Brisbane is fixed UTC+10 (no DST).
+  const tzOffset = '+10:00';
+  const yyyy = parseInt(year);
+  const mm = parseInt(month);
+  const pad = (n) => String(n).padStart(2, '0');
+  const lastDay = new Date(Date.UTC(yyyy, mm + 1, 0)).getUTCDate();
+  const timeMin = `${yyyy}-${pad(mm + 1)}-01T00:00:00${tzOffset}`;
+  const timeMax = `${yyyy}-${pad(mm + 1)}-${pad(lastDay)}T23:59:59${tzOffset}`;
 
   try {
     const auth = getOAuthClient();

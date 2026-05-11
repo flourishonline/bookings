@@ -515,10 +515,48 @@ const CONFIG = {
   ]
 };
 
-// Detect client's local timezone
-const CLIENT_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-const CLIENT_TZ_LABEL = new Intl.DateTimeFormat('en', { timeZoneName: 'short', timeZone: CLIENT_TZ })
-  .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || CLIENT_TZ;
+// Detect client's local timezone (mutable — visitor can override via dropdown).
+let CLIENT_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let CLIENT_TZ_LABEL = tzShortLabel(CLIENT_TZ);
+
+function tzShortLabel(tz) {
+  return new Intl.DateTimeFormat('en', { timeZoneName: 'short', timeZone: tz })
+    .formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || tz;
+}
+
+// Current GMT offset for a timezone, formatted like "GMT+10:00".
+function tzOffsetLabel(tz, date = new Date()) {
+  const offset = new Intl.DateTimeFormat('en', { timeZone: tz, timeZoneName: 'longOffset' })
+    .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || '';
+  return offset === 'GMT' ? 'GMT+00:00' : offset;
+}
+
+// Curated list of common timezones, grouped by region. Visitors can still
+// see their actual detected timezone selected even if it's not in this list —
+// we always prepend the detected zone if it's missing.
+const TIMEZONE_GROUPS = [
+  { label: 'Australia & Pacific', zones: [
+    'Australia/Brisbane', 'Australia/Sydney', 'Australia/Melbourne',
+    'Australia/Adelaide', 'Australia/Perth', 'Australia/Darwin',
+    'Australia/Hobart', 'Pacific/Auckland', 'Pacific/Fiji',
+  ]},
+  { label: 'Asia', zones: [
+    'Asia/Singapore', 'Asia/Hong_Kong', 'Asia/Tokyo', 'Asia/Shanghai',
+    'Asia/Seoul', 'Asia/Bangkok', 'Asia/Jakarta', 'Asia/Manila',
+    'Asia/Kolkata', 'Asia/Dubai',
+  ]},
+  { label: 'Europe & Africa', zones: [
+    'Europe/London', 'Europe/Dublin', 'Europe/Paris', 'Europe/Berlin',
+    'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Stockholm',
+    'Europe/Athens', 'Europe/Moscow', 'Africa/Cairo', 'Africa/Johannesburg',
+  ]},
+  { label: 'Americas', zones: [
+    'America/New_York', 'America/Toronto', 'America/Chicago', 'America/Denver',
+    'America/Los_Angeles', 'America/Vancouver', 'America/Mexico_City',
+    'America/Sao_Paulo', 'America/Buenos_Aires', 'America/Lima', 'America/Bogota',
+  ]},
+  { label: 'UTC', zones: ['UTC'] },
+];
 
 // Convert a AEST time string (HH:MM) on a given date to the client's local time
 // Returns { time: 'HH:MM', dateStr: 'YYYY-MM-DD' } — date may shift if crossing midnight
@@ -557,20 +595,66 @@ let state = {
 };
 
 window.onload = () => {
-  // Always show a timezone notice so visitors (and Lis when testing) can see
-  // which timezone times are being displayed in.
-  {
-    const isBrisbane = (CLIENT_TZ === 'Australia/Brisbane' || CLIENT_TZ === 'Australia/Queensland');
-    const notice = document.createElement('div');
-    notice.style.cssText = 'background:#1A1A1A;color:#FFB3E0;font-size:12px;text-align:center;padding:8px 20px;letter-spacing:0.5px;';
-    notice.textContent = isBrisbane
-      ? `⏰ Times shown in ${CONFIG.timezoneLabel} (Brisbane)`
-      : `⏰ Times shown in your local timezone: ${CLIENT_TZ_LABEL}`;
-    document.querySelector('.hero').after(notice);
-  }
+  buildTimezoneBar();
   renderServices();
   renderCalendar();
 };
+
+function buildTimezoneBar() {
+  const bar = document.createElement('div');
+  bar.id = 'tzBar';
+  bar.style.cssText = 'background:#1A1A1A;color:#FFB3E0;font-size:12px;text-align:center;padding:8px 20px;letter-spacing:0.5px;display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;';
+  bar.innerHTML = `
+    <span>⏰ Times shown in:</span>
+    <select id="tzSelect" aria-label="Time zone"
+      style="background:#1A1A1A;color:#FFB3E0;border:1px solid #555;padding:4px 10px;font-family:inherit;font-size:12px;letter-spacing:0.5px;cursor:pointer;border-radius:0;max-width:280px;">
+    </select>
+  `;
+  document.querySelector('.hero').after(bar);
+
+  // Build option list. Always include the detected zone even if it's not
+  // in our curated list.
+  const detected = CLIENT_TZ;
+  const select = document.getElementById('tzSelect');
+  const seen = new Set();
+  const addOption = (parent, tz) => {
+    if (seen.has(tz)) return;
+    seen.add(tz);
+    const opt = document.createElement('option');
+    opt.value = tz;
+    const city = tz.split('/').slice(-1)[0].replace(/_/g, ' ');
+    opt.textContent = `(${tzOffsetLabel(tz)}) ${city}`;
+    parent.appendChild(opt);
+  };
+
+  // Pin detected timezone to the top if it's not already in the curated list.
+  const inCurated = TIMEZONE_GROUPS.some(g => g.zones.includes(detected));
+  if (!inCurated) {
+    const grp = document.createElement('optgroup');
+    grp.label = 'Your timezone';
+    select.appendChild(grp);
+    addOption(grp, detected);
+  }
+
+  TIMEZONE_GROUPS.forEach(g => {
+    const grp = document.createElement('optgroup');
+    grp.label = g.label;
+    select.appendChild(grp);
+    g.zones.forEach(z => addOption(grp, z));
+  });
+
+  select.value = detected;
+  select.addEventListener('change', onTimezoneChange);
+}
+
+function onTimezoneChange() {
+  const tz = document.getElementById('tzSelect').value;
+  CLIENT_TZ = tz;
+  CLIENT_TZ_LABEL = tzShortLabel(tz);
+  // Re-render the parts of the UI that show times.
+  if (state.date) selectDate(state.date);
+  if (state.step === 3) renderDetailsSummary();
+}
 
 function renderServices() {
   document.getElementById('serviceList').innerHTML = CONFIG.services.map(s => `

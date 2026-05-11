@@ -557,11 +557,15 @@ let state = {
 };
 
 window.onload = () => {
-  // Show timezone notice if client is not in Brisbane
-  if (CLIENT_TZ !== 'Australia/Brisbane' && CLIENT_TZ !== 'Australia/Queensland') {
+  // Always show a timezone notice so visitors (and Lis when testing) can see
+  // which timezone times are being displayed in.
+  {
+    const isBrisbane = (CLIENT_TZ === 'Australia/Brisbane' || CLIENT_TZ === 'Australia/Queensland');
     const notice = document.createElement('div');
     notice.style.cssText = 'background:#1A1A1A;color:#FFB3E0;font-size:12px;text-align:center;padding:8px 20px;letter-spacing:0.5px;';
-    notice.textContent = `⏰ Times shown in your local timezone: ${CLIENT_TZ_LABEL}`;
+    notice.textContent = isBrisbane
+      ? `⏰ Times shown in ${CONFIG.timezoneLabel} (Brisbane)`
+      : `⏰ Times shown in your local timezone: ${CLIENT_TZ_LABEL}`;
     document.querySelector('.hero').after(notice);
   }
   renderServices();
@@ -663,7 +667,8 @@ async function loadBusy() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     (data.busy || []).forEach(({ start, end }) => {
-      const ds = start.slice(0, 10);
+      // Bucket by Brisbane-local date (start is UTC ISO from Google).
+      const ds = new Date(start).toLocaleDateString('en-CA', { timeZone: CONFIG.timezone });
       if (!state.busySlots[ds]) state.busySlots[ds] = [];
       state.busySlots[ds].push({ start, end });
     });
@@ -744,8 +749,11 @@ function getAvailableSlots(ds) {
   const dur = state.service.duration;
   const buf = CONFIG.bufferMins;
   for (let h = CONFIG.workingHours.start * 60; h + dur <= CONFIG.workingHours.end * 60; h += CONFIG.slotIntervalMins) {
-    const slotStart = new Date(`${ds}T${minToTime(h)}:00`);
-    const slotEndBuf = new Date(`${ds}T${minToTime(h + dur + buf)}:00`);
+    // Anchor slot bounds to Brisbane time (+10:00, no DST) so the overlap
+    // check against Google's UTC busy ranges is correct regardless of the
+    // visitor's browser timezone.
+    const slotStart  = new Date(`${ds}T${minToTime(h)}:00+10:00`);
+    const slotEndBuf = new Date(`${ds}T${minToTime(h + dur + buf)}:00+10:00`);
     const overlap = busy.some(b => slotStart < new Date(b.end) && slotEndBuf > new Date(b.start));
     if (!overlap) slots.push(minToTime(h));
   }
